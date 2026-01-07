@@ -58,7 +58,7 @@
             <div class="row">
                 <div class="col-12">
                     <div class="footer-bottom-text">
-                        Copyright© 2025 Spotlight Attires
+                        Copyright© 2025 {{ $front_ins_name }}. All rights reserved.
                     </div>
                 </div>
             </div>

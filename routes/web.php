@@ -97,7 +97,8 @@ Route::post('/user-order-cancel', 'cancelOrder')->name('user.order.cancel');
 
     });
 });
-
+Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 // Authentication Routes
 Route::post('/login', [AuthController::class, 'login'])->name('customer.login');
 Route::post('/register', [AuthController::class, 'register'])->name('customer.register');

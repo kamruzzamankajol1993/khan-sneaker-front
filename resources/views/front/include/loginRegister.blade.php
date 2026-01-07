@@ -4,8 +4,8 @@
         <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body" style="overflow-y: auto; padding-bottom: 80px;">
-        {{-- General Error Message Area --}}
-        <div id="auth-error-message" class="alert alert-danger" style="display: none;"></div>
+        {{-- General Message Area (for success and error) --}}
+        <div id="auth-error-message" class="alert" style="display: none;"></div>
 
         {{-- Login Form --}}
         <form id="loginForm" novalidate>
@@ -33,37 +33,43 @@
                     Log In
                 </button>
             </div>
+            {{-- =================================== --}}
+            {{-- === START: ADDED GOOGLE LOGIN === --}}
+            {{-- =================================== --}}
+            <div class="text-center my-3">
+                <div class="row align-items-center">
+                    <div class="col"><hr></div>
+                    <div class="col-auto" style="color: #6c757d;">OR</div>
+                    <div class="col"><hr></div>
+                </div>
+            </div>
+            <div class="d-grid mb-3">
+                <a href="{{ route('auth.google.redirect') }}" class="btn btn-outline-dark" style="border-color: #ced4da;">
+                    <i class="bi bi-google me-2"></i> Sign in with Google
+                </a>
+            </div>
+            {{-- ================================= --}}
+            {{-- === END: ADDED GOOGLE LOGIN === --}}
+            {{-- ================================= --}}
              <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="form-check"><input class="form-check-input" type="checkbox" id="rememberMe"><label class="form-check-label" for="rememberMe">Remember me</label></div>
                 <a href="#" class="text-decoration-none text-dark" id="forgotPasswordLink">Lost your password?</a>
             </div>
         </form>
 
-        {{-- MODIFIED Forgot Password Form (Now Phone Based) --}}
+        {{-- UPDATED Forgot Password Form (Now Email Based) --}}
         <form id="forgotPasswordForm" style="display: none;" novalidate>
             @csrf
-            <p>Lost your password? Please enter your phone number. You will receive a verification code to create a new password.</p>
+            <p>Lost your password? Please enter your email address. You will receive a verification code to create a new password.</p>
             <div class="mb-3">
-                <label for="forgotPhone" class="form-label">Phone Number <span class="text-danger">*</span></label>
-                 <div class="input-group">
-                    <span class="input-group-text d-flex align-items-center gap-2">
-                        <img src="https://flagcdn.com/w20/bd.png" width="20" alt="Bangladesh Flag">
-                        +880
-                    </span>
-                    <input 
-                        type="tel" 
-                        class="form-control" 
-                        id="forgotPhone" 
-                        name="phone" 
-                        required 
-                        pattern="\d{10}"
-                        maxlength="10" 
-                        title="Please enter a 10-digit phone number (without the leading 0).">
-                </div>
-                <div id="forgotPhoneHelp" class="form-text text-danger">
-                  Enter the 10 digits after +880 (e.g., 1712345678).
-                </div>
-                <div class="invalid-feedback">Please provide a valid 10-digit phone number.</div>
+                <label for="forgotEmail" class="form-label">Email Address <span class="text-danger">*</span></label>
+                <input 
+                    type="email" 
+                    class="form-control" 
+                    id="forgotEmail" 
+                    name="email" 
+                    required>
+                <div class="invalid-feedback">Please provide a valid email address.</div>
             </div>
              <div class="d-grid mb-3">
                 <button type="submit" class="btn btn-dark">
@@ -74,34 +80,31 @@
              <a href="#" class="text-decoration-none text-dark" id="backToLoginLink">&larr; Back to Login</a>
         </form>
 
-        {{-- Registration Form --}}
+        {{-- UPDATED Registration Form --}}
         <form id="registerForm" style="display: none;" novalidate>
              @csrf
             <div class="mb-3"><label for="registerName" class="form-label">Full Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="registerName" name="name" required><div class="invalid-feedback"></div></div>
           
             <div class="mb-3"><label for="registerEmail" class="form-label">Email (Optional)</label><input type="email" class="form-control" id="registerEmail" name="email"><div class="invalid-feedback"></div></div>
+            
+            {{-- UPDATED Phone Input --}}
             <div class="mb-3">
                 <label for="registerPhone" class="form-label">Phone <span class="text-danger">*</span></label>
-                <div class="input-group">
-                    <span class="input-group-text d-flex align-items-center gap-2">
-                        <img src="https://flagcdn.com/w20/bd.png" width="20" alt="Bangladesh Flag">
-                        +880
-                    </span>
-                    <input 
-                        type="tel" 
-                        class="form-control" 
-                        id="registerPhone" 
-                        name="phone" 
-                        required 
-                        pattern="\d{10}"
-                        maxlength="10" 
-                        title="Please enter a 10-digit phone number (without the leading 0).">
-                </div>
+                <input 
+                    type="tel" 
+                    class="form-control" 
+                    id="registerPhone" 
+                    name="phone" 
+                    required 
+                    pattern="\d{11}"
+                    maxlength="11" 
+                    title="Please enter an 11-digit phone number.">
                 <div id="phoneHelp" class="form-text text-danger">
-                  Enter the 10 digits after +880 (e.g., 1712345678).
+                  Enter your 11-digit phone number (e.g., 01712345678).
                 </div>
-                <div class="invalid-feedback">Please provide a valid 10-digit phone number.</div>
+                <div class="invalid-feedback">Please provide a valid 11-digit phone number.</div>
             </div>
+
             <div class="mb-3">
                 <label for="registerPassword" class="form-label">Password <span class="text-danger">*</span></label>
                 <div class="input-group">
@@ -130,10 +133,10 @@
             </div>
         </form>
         
-        {{-- OTP Verification Form (Used for both Register and Reset) --}}
+        {{-- OTP Verification Form (Now ONLY for Password Reset) --}}
         <form id="otpForm" style="display: none;" novalidate>
             @csrf
-            <p class="text-center">A 6-digit verification code has been sent to your phone. Please enter it below.</p>
+            <p class="text-center">A 6-digit verification code has been sent to your email. Please enter it below.</p>
             <div class="d-flex justify-content-center gap-2 mb-3" id="otp-inputs">
                 <input type="text" class="form-control form-control-lg text-center otp-input" maxlength="1" required>
                 <input type="text" class="form-control form-control-lg text-center otp-input" maxlength="1" required>
@@ -222,7 +225,8 @@ $(document).ready(function() {
         const scope = form ? form : $(document);
         scope.find('.form-control').removeClass('is-invalid is-valid'); // Clear validation
         scope.find('.invalid-feedback').text('');
-        authErrorDiv.hide().text('');
+        // Reset auth message div
+        authErrorDiv.hide().text('').removeClass('alert-success').addClass('alert-danger');
     }
 
     function hideAllAuthForms() {
@@ -260,6 +264,11 @@ $(document).ready(function() {
                      fieldId = 'resetPasswordInput';
                 }
             }
+            // Handle email on forgot password form
+            if (field === 'email' && form.is('#forgotPasswordForm')) {
+                fieldId = 'forgotEmail';
+            }
+            
             const input = form.find(`#${fieldId}, [name="${field}"]`).first();
             input.addClass('is-invalid');
             input.closest('.mb-3').find('.invalid-feedback').text(messages[0]);
@@ -354,7 +363,7 @@ $(document).ready(function() {
         });
     });
 
-    // --- Registration Form Submission ---
+    // --- UPDATED Registration Form Submission ---
     registerForm.on('submit', function(e) {
         e.preventDefault();
         const currentForm = $(this);
@@ -371,11 +380,14 @@ $(document).ready(function() {
             contentType: false,
             success: function(response) {
                 if (response.success) {
-                    registerForm.hide();
-                    otpForm.show();
-                    otpForm.data('mode', 'register'); // Set mode for OTP form
-                    authToggleSection.hide();
-                    offcanvasTitle.text('Verify Your Account');
+                    // --- SUCCESS: Show success message and switch to login form ---
+                    hideAllAuthForms();
+                    loginForm.show();
+                    authToggleSection.show();
+                    offcanvasTitle.text('Sign in');
+                    
+                    // Show success message
+                    authErrorDiv.removeClass('alert-danger').addClass('alert-success').text(response.message).show();
                 }
             },
             error: function(xhr) {
@@ -391,7 +403,7 @@ $(document).ready(function() {
         });
     });
 
-     // --- MODIFIED Forgot Password Form Submission (Send OTP) ---
+     // --- UPDATED Forgot Password Form Submission (Send OTP via Email) ---
     forgotPasswordForm.on('submit', function(e) {
         e.preventDefault();
         const currentForm = $(this);
@@ -399,7 +411,7 @@ $(document).ready(function() {
         showLoader(currentForm);
 
         $.ajax({
-            url: '{{ route("password.sendOtp") }}', // <-- New Route
+            url: '{{ route("password.sendOtp") }}', // This route is now for email
             method: 'POST',
             data: currentForm.serialize(),
             success: function(response) {
@@ -423,7 +435,7 @@ $(document).ready(function() {
         });
     });
 
-    // --- OTP Form Logic (NOW HANDLES BOTH MODES) ---
+    // --- OTP Form Logic (NOW ONLY HANDLES RESET) ---
     const otpInputs = $('.otp-input');
     otpInputs.on('keyup', function(e) {
         if (e.key >= 0 && e.key <= 9) {
@@ -436,7 +448,7 @@ $(document).ready(function() {
     otpForm.on('submit', function(e) {
         e.preventDefault();
         const currentForm = $(this);
-        const mode = currentForm.data('mode'); // 'register' or 'reset'
+        const mode = currentForm.data('mode'); // Will only be 'reset'
         
         clearErrors(currentForm);
         showLoader(currentForm);
@@ -446,35 +458,24 @@ $(document).ready(function() {
             otp += $(this).val();
         });
 
-        let ajaxUrl;
-        let ajaxData = {
-            _token: '{{ csrf_token() }}',
-            otp: otp
-        };
-
-        if (mode === 'register') {
-            ajaxUrl = '{{ route("customer.verifyOtp") }}';
-        } else if (mode === 'reset') {
-            ajaxUrl = '{{ route("password.verifyOtp") }}'; // <-- New Route
-        } else {
-            authErrorDiv.text('An unknown error occurred. Please try again.').show();
-            hideLoader(currentForm);
-            return;
+        if (mode !== 'reset') {
+             authErrorDiv.text('An unknown error occurred. Please try again.').show();
+             hideLoader(currentForm);
+             return;
         }
 
         $.ajax({
-            url: ajaxUrl,
+            url: '{{ route("password.verifyOtp") }}', // Only password reset
             method: 'POST',
-            data: ajaxData,
+            data: {
+                _token: '{{ csrf_token() }}',
+                otp: otp
+            },
             success: function(response) {
                  if (response.success) {
-                    if (mode === 'register') {
-                        window.location.href = response.redirect_url;
-                    } else if (mode === 'reset') {
-                        otpForm.hide();
-                        resetPasswordFinalForm.show();
-                        offcanvasTitle.text('Set New Password');
-                    }
+                    otpForm.hide();
+                    resetPasswordFinalForm.show();
+                    offcanvasTitle.text('Set New Password');
                 }
             },
             error: function(xhr) {
@@ -520,20 +521,15 @@ $(document).ready(function() {
     });
 
 
-    // --- Resend OTP Logic (NOW HANDLES BOTH MODES) ---
+    // --- Resend OTP Logic (NOW ONLY HANDLES RESET) ---
     $('#resendOtpLink').on('click', function(e) {
         e.preventDefault();
         $('#resend-loader').show();
         $(this).hide();
 
-        const mode = $('#otpForm').data('mode');
-        let ajaxUrl;
+        const mode = $('#otpForm').data('mode'); // Will only be 'reset'
 
-        if (mode === 'register') {
-            ajaxUrl = '{{ route("customer.resendOtp") }}';
-        } else if (mode === 'reset') {
-            ajaxUrl = '{{ route("password.resendOtp") }}'; // <-- New Route
-        } else {
+        if (mode !== 'reset') {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Session expired. Please start over.' });
             $('#resend-loader').hide();
             $('#resendOtpLink').show();
@@ -541,7 +537,7 @@ $(document).ready(function() {
         }
 
         $.ajax({
-            url: ajaxUrl,
+            url: '{{ route("password.resendOtp") }}', // Only password reset
             method: 'POST',
             data: { _token: '{{ csrf_token() }}' },
             success: function(response) {
@@ -623,19 +619,15 @@ $(document).ready(function() {
     resetConfirmPassword.on('keyup', validateResetPasswords);
 
     
-    // --- Phone Number Input Formatting (for Register and Forgot) ---
+    // --- UPDATED Phone Number Input Formatting (for Register) ---
     function formatPhoneNumber() {
         let value = $(this).val();
-        value = value.replace(/\D/g, '');
-        if (value.startsWith('0')) {
-            value = value.substring(1);
-        }
-        if (value.length > 10) {
-            value = value.slice(0, 10);
+        value = value.replace(/\D/g, ''); // Remove non-digits
+        if (value.length > 11) {
+            value = value.slice(0, 11); // Max 11 digits
         }
         $(this).val(value);
     }
     $('#registerPhone').on('input', formatPhoneNumber);
-    $('#forgotPhone').on('input', formatPhoneNumber); // Added for new form
 });
 </script>

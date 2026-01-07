@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotlight Attires - OTP Verification</title>
+    <title>Khan Sneaker - OTP Verification</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -97,12 +97,12 @@
 
     <div class="email-container">
         <header class="header">
-            <img src="https://adminpanel.spotlightattires.com/public/uploads/1678859299.png" alt="Spotlight Attires Logo" class="logo-image">
+            <img src="https://adminpanel.spotlightattires.com/public/uploads/1678859299.png" alt="Khan Sneaker Logo" class="logo-image">
         </header>
 
         <main class="content">
             <p style="font-weight: 900;color:#0f1531 !important;">Hello <strong style="color:#0f1531 !important;">{{ $name }}</strong>,</p>
-            <p>Thank you for registering with <strong style="color:#0f1531 !important;">Spotlight Attires!</strong> <br>
+            <p>Thank you for registering with <strong style="color:#0f1531 !important;">Khan Sneaker!</strong> <br>
             To verify your account, please use the One-Time Password (OTP) below.</p>
             <p class="otp-text" style="font-weight: 900;color:#0f1531 !important;">Your OTP: <strong style="color:#0f1531 !important;">{{ $otp }}</strong></p>
             <p style="color:#0f1531 !important;">This OTP is valid for the next 5 minutes.</p>
@@ -110,7 +110,7 @@
         </main>
 <footer class="footer">
             <p>Best regards,</p>
-            <p><strong style="color:#0f1531 !important;">The Spotlight Attires Team</strong></p>
+            <p><strong style="color:#0f1531 !important;">The Khan Sneaker Team</strong></p>
         </footer>
         
     </div>

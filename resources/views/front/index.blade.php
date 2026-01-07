@@ -193,58 +193,58 @@
 @endsection
 @section('body')
     <main>
-       <section class="spotlighthero hero-section">
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-lg-12 mb-3 mb-lg-0">
-                <div class="main-slider">
-                    {{-- Check if any left sliders exist and are active --}}
-                    @if(isset($heroLeftSliders) && $heroLeftSliders->count() > 0)
-                        @foreach($heroLeftSliders as $slider)
-                            <div class="slider-item">
-                                @php
-                                    // Determine the correct link for the polymorphic relationship
-                                    $link = '#';
-                                    if ($slider->linkable) {
-                                        if ($slider->linkable_type === 'App\Models\Product') {
-                                            $link = route('product.show', $slider->linkable->slug);
-                                        } elseif ($slider->linkable_type === 'App\Models\Category') {
-                                            $link = route('category.show', $slider->linkable->slug);
-                                        } elseif ($slider->linkable_type === 'App\Models\BundleOffer') {
-                                            $link = route('offer.show', $slider->linkable->slug);
-                                        }
-                                        // You can add more 'elseif' conditions here for other models
-                                    }
-                                @endphp
-                                {{-- The entire image is now a clickable link --}}
-                                <a href="{{ $link }}">
-                                    <img src="{{ $front_ins_url . 'public/' . $slider->image }}" alt="{{ $slider->title }}">
-                                </a>
-                                <div class="content">
-                                    <h1 class="fw-bold">{{ Str::upper($slider->title) }}</h1>
-                                    <p>{{ $slider->subtitle }}</p>
-                                    <a href="{{ $link }}" class="btn btn-outline-light">ORDER NOW</a>
-                                </div>
-                            </div>
-                        @endforeach
-                    @else
-                        {{-- Fallback content if no sliders are set up in the admin panel --}}
+          {{-- ====================================================== --}}
+       {{-- === START: UPDATED HERO SLIDER SECTION === --}}
+       {{-- ====================================================== --}}
+       <section class="spotlighthero hero-section p-0">
+            {{-- Removed container-fluid, row, and col to make it full width --}}
+            <div class="main-slider">
+                {{-- Check if any left sliders exist and are active --}}
+                @if(isset($heroLeftSliders) && $heroLeftSliders->count() > 0)
+                    @foreach($heroLeftSliders as $slider)
                         <div class="slider-item">
-                            <img src="https://placehold.co/847x537" alt="Default Banner">
+                            @php
+                                // Determine the correct link for the polymorphic relationship
+                                $link = '#';
+                                if ($slider->linkable) {
+                                    if ($slider->linkable_type === 'App\Models\Product') {
+                                        $link = route('product.show', $slider->linkable->slug);
+                                    } elseif ($slider->linkable_type === 'App\Models\Category') {
+                                        $link = route('category.show', $slider->linkable->slug);
+                                    } elseif ($slider->linkable_type === 'App\Models\BundleOffer') {
+                                        $link = route('offer.show', $slider->linkable->slug);
+                                    }
+                                    // You can add more 'elseif' conditions here for other models
+                                }
+                            @endphp
+                            {{-- The entire image is now a clickable link --}}
+                            <a href="{{ $link }}">
+                                <img src="{{ $front_ins_url . 'public/' . $slider->image }}" alt="{{ $slider->title }}">
+                            </a>
+                            {{-- This content is now centered via CSS --}}
                             <div class="content">
-                                <h1 class="fw-bold">WELCOME</h1>
-                                <p>Check out our latest collections.</p>
-                                <a href="{{ route('shop.show') }}" class="btn btn-outline-light">SHOP NOW</a>
+                                <h1 class="fw-bold">{{ Str::upper($slider->title) }}</h1>
+                                <p>{{ $slider->subtitle }}</p>
+                                <a href="{{ $link }}" class="btn btn-outline-light">ORDER NOW</a>
                             </div>
                         </div>
-                    @endif
-                </div>
+                    @endforeach
+                @else
+                    {{-- Fallback content if no sliders are set up in the admin panel --}}
+                    <div class="slider-item">
+                        <img src="https://placehold.co/1920x800" alt="Default Banner">
+                        <div class="content">
+                            <h1 class="fw-bold">WELCOME</h1>
+                            <p>Check out our latest collections.</p>
+                            <a href="{{ route('shop.show') }}" class="btn btn-outline-light">SHOP NOW</a>
+                        </div>
+                    </div>
+                @endif
             </div>
-
-        
-        </div>
-    </div>
-</section>
+        </section>
+       {{-- ====================================================== --}}
+       {{-- === END: UPDATED HERO SLIDER SECTION === --}}
+       {{-- ====================================================== --}}
         {{-- This entire section will only show if the status is active and products are available --}}
 @if(isset($topRatedTitle) && !empty($topRatedTitle) && $products->isNotEmpty())
 <section class="section">
@@ -1307,7 +1307,7 @@
         <section class="why-section">
     <div class="container">
         <div class="why-header">
-            <h2>WHY Khan Sneaker STORE?</h2>
+            <h2>WHY KHAN SNEAKER STORE?</h2>
         </div>
                     <div class="row why-layout">
                 <!-- Left side: Banner -->

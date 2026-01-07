@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotlight Attires - Password Reset OTP</title>
+    <title>Khan Sneaker - Password Reset OTP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -97,12 +97,12 @@
 
     <div class="email-container">
         <header class="header">
-            <img src="https://adminpanel.spotlightattires.com/public/uploads/1678859299.png" alt="Spotlight Attires Logo" class="logo-image">
+            <img src="https://adminpanel.spotlightattires.com/public/uploads/1678859299.png" alt="Khan Sneaker Logo" class="logo-image">
         </header>
 
         <main class="content">
             <p style="font-weight: 900;color:#0f1531 !important;">Hello <strong style="color:#0f1531 !important;">{{ $name }}</strong>,</p>
-            <p>We Have Received A Request To Reset Your  <strong style="color:#0f1531 !important;">Spotlight Attires!</strong> Account Password. <br>
+            <p>We Have Received A Request To Reset Your  <strong style="color:#0f1531 !important;">Khan Sneaker!</strong> Account Password. <br>
             Please use the Link below to proceed.</p>
              <p style="text-align: center;">
         <a href="{{ $resetUrl }}" style="display: inline-block; padding: 12px 24px; background-color: #212529; color: #ffffff; text-decoration: none; border-radius: 5px;">Reset Password</a>
@@ -112,7 +112,7 @@
         </main>
 <footer class="footer">
             <p>Best regards,</p>
-            <p><strong style="color:#0f1531 !important;">The Spotlight Attires Team</strong></p>
+            <p><strong style="color:#0f1531 !important;">The Khan Sneaker Team</strong></p>
         </footer>
         
     </div>

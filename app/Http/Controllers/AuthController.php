@@ -7,7 +7,7 @@ use App\Models\CustomerAddress;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB; // <-- Ensure this is present
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
@@ -15,20 +15,118 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File; 
 use Mpdf\Mpdf;
-use Exception; // <-- Ensure this is present
+use Exception;
 use GuzzleHttp\Client; 
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Session;
+// Assuming OrderTracking is in App\Models
+use App\Models\OrderTracking; 
+use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
 
+    // ====================================================================
+    // --- 2. ADD GOOGLE AUTHENTICATION METHODS ---
+    // ====================================================================
+
+    /**
+     * Redirect the user to the Google authentication page.
+     */
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->redirect();
+    }
+
+    /**
+     * Obtain the user information from Google.
+     */
+    public function handleGoogleCallback()
+    {
+        try {
+            $googleUser = Socialite::driver('google')->user();
+
+            // 1. Check if user already exists with this google_id
+            $user = User::where('google_id', $googleUser->id)->first();
+
+            if ($user) {
+                Auth::login($user);
+                return redirect()->route('dashboard.user');
+            }
+
+            // 2. User doesn't exist with google_id. Check by email.
+            $user = User::where('email', $googleUser->email)->first();
+
+            if ($user) {
+                // Email exists, but not linked to Google. Link it.
+                $user->google_id = $googleUser->id;
+                $user->email_verified_at = now(); // Google provides a verified email
+                $user->save();
+
+                Auth::login($user);
+                return redirect()->route('dashboard.user');
+            }
+
+            // 3. No user exists at all. Create a new User and Customer.
+            // This replicates the logic from your register() method.
+            DB::beginTransaction();
+            try {
+                $newUser = User::create([
+                    'name' => $googleUser->name,
+                    'email' => $googleUser->email,
+                    'google_id' => $googleUser->id,
+                    'phone' => null, // Phone is not provided by Google
+                    'password' => Hash::make(Str::random(24)), // Generate a secure random password
+                    'viewpassword' => null,
+                    'email_verified_at' => now(),
+                    'user_type' => 1, // 1 for Customer
+                    'status' => 1,
+                ]);
+
+                $customer = Customer::create([
+                    'name' => $googleUser->name,
+                    'email' => $googleUser->email,
+                    'phone' => null, // Phone is not provided
+                    'status' => 1,
+                    'type' => 'normal',
+                    'source' => 'google', // Set source as google
+                    'password' => null, // Password is managed by the User model
+                    'slug' => Str::slug($googleUser->name).'-'.uniqid(),
+                    'user_id' => $newUser->id,
+                ]);
+
+                // Link the new User to the new Customer
+                $newUser->customer_id = $customer->id;
+                $newUser->save();
+
+                DB::commit();
+
+                // Log in the new user
+                Auth::login($newUser);
+                return redirect()->route('dashboard.user');
+
+            } catch (Exception $e) {
+                DB::rollBack();
+                \Log::error('Google Callback New User Error: ' . $e->getMessage());
+                return redirect('/')->with('error', 'An error occurred during sign-in. Please try again.');
+            }
+
+        } catch (Exception $e) {
+            \Log::error('Google Socialite Error: '  . $e->getMessage());
+            return redirect('/')->with('error', 'Failed to authenticate with Google. Please try again.');
+        }
+    }
+
+    // ====================================================================
+    // --- UPDATED PASSWORD RESET (EMAIL OTP) METHODS ---
+    // ====================================================================
+
     /**
      * A private helper function to send an OTP via ADN SMS Gateway.
+     * (No longer used for registration/password reset, but kept for other features like phone updates)
      */
     private function sendSmsOtp($phone, $otp)
     {
-$cleanPhoneNumber = trim($phone);
-       // dd($phone);
+        $cleanPhoneNumber = trim($phone);
         try {
             $client = new Client();
             $url = 'https://portal.adnsms.com/api/v1/secure/send-sms';
@@ -46,7 +144,6 @@ $cleanPhoneNumber = trim($phone);
 
             $responseBody = json_decode($response->getBody(), true);
 
-            // Check the API response code from ADN SMS. '200' usually means success.
             if (isset($responseBody['api_response_code']) && $responseBody['api_response_code'] == "200") {
                  return true;
             } else {
@@ -98,6 +195,7 @@ $cleanPhoneNumber = trim($phone);
 
         return response()->json(['success' => false, 'message' => 'No image file found.'], 400);
     }
+    
     /**
      * Handle a login request.
      */
@@ -141,27 +239,27 @@ $cleanPhoneNumber = trim($phone);
     }
 
    /**
-     * Handle a registration request and send OTP.
+     * Handle a registration request (NO OTP).
+     * Creates the user and customer directly.
      */
      public function register(Request $request)
     {
-        // Prepend '0' to the 10-digit phone number to make it 11 digits
-        if ($request->has('phone')) {
-            $request->merge([
-                'phone' => '0' . $request->phone
-            ]);
-        }
-        $formattedPhone = $request->phone;
-
         // --- MODIFIED VALIDATION LOGIC ---
+        // Assumes an 11-digit phone number is submitted directly
+        $formattedPhone = $request->phone;
+        
         $existingCustomer = Customer::where('phone', $formattedPhone)->first();
         $existingUser = User::where('phone', $formattedPhone)->first();
 
         $rules = [
             'name'      => 'required|string|max:255',
             'email'     => 'nullable|string|email|max:255',
-            'phone'     => 'required|string|digits:11',
+            'phone'     => 'required|string|digits:11', // Expecting 11 digits
             'password'  => 'required|string|min:8|confirmed',
+        ];
+        
+        $messages = [
+            'phone.digits' => 'The phone number must be a valid 11-digit number.',
         ];
 
         if ($existingCustomer && !$existingUser) {
@@ -175,169 +273,120 @@ $cleanPhoneNumber = trim($phone);
             $rules['phone'] .= '|unique:users,phone|unique:customers,phone';
         }
 
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $rules, $messages);
         // --- END MODIFIED VALIDATION LOGIC ---
 
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
-
-        $tempUserData = $request->except('password_confirmation', '_token', 'image');
+        
+        // --- DIRECT USER & CUSTOMER CREATION ---
+        $data = $request->except('password_confirmation', '_token', 'image');
         
         // If email is not provided, generate a unique one using the phone number.
         if (empty($request->email)) {
-            $tempUserData['email'] = $request->phone . '@guest.user';
+            $data['email'] = $request->phone . '@guest.user';
         }
         
         if ($request->hasFile('image')) {
             $imageName = time().'.'.$request->image->extension();  
             $request->image->move(public_path('uploads/customer_images'), $imageName);
-            $tempUserData['image_path'] = 'uploads/customer_images/' . $imageName;
+            $data['image_path'] = 'uploads/customer_images/' . $imageName; // Note: This isn't used in the create logic below
         }
 
-        $otp = random_int(100000, 999999);
-        $tempUserData['otp'] = $otp;
+        $existingCustomerId = $existingCustomer ? $existingCustomer->id : null;
+        $user = null;
 
-        // --- ADDED: Store existing customer ID in session ---
-        $tempUserData['existing_customer_id'] = $existingCustomer ? $existingCustomer->id : null;
+        DB::beginTransaction();
+        try {
+            if ($existingCustomerId) {
+                // --- SCENARIO 1: UPDATE EXISTING CUSTOMER, CREATE NEW USER ---
 
-        session(['temp_user_data' => $tempUserData]);
+                // 1. Create the User
+                $user = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'phone' => $data['phone'],
+                    'password' => Hash::make($data['password']),
+                    'viewpassword' => $data['password'],
+                    'email_verified_at' => now(),
+                    'user_type' => 1,
+                    'status' => 1,
+                ]);
 
-       // dd($request->phone);
-        
-        if ($this->sendSmsOtp($request->phone, $otp)) {
-            return response()->json(['success' => true, 'message' => 'A 6-digit OTP has been sent to your phone number.']);
-        } else {
-            return response()->json(['success' => false, 'message' => 'Could not send OTP. Please check your phone number and try again.'], 500);
+                // 2. Find and Update the Customer
+                $customer = Customer::findOrFail($existingCustomerId);
+                $customer->update([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'password' => $data['password'], // Setter in Customer model will hash
+                    'user_id' => $user->id,
+                    'slug' => Str::slug($data['name']).'-'.uniqid(),
+                    'source' => 'website',
+                    'status' => 1,
+                ]);
+
+                // 3. Link User back to Customer
+                $user->customer_id = $customer->id;
+                $user->save();
+
+            } else {
+                // --- SCENARIO 2: CREATE NEW USER AND NEW CUSTOMER (Original Logic) ---
+
+                // 1. Create User
+                $user = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'phone' => $data['phone'],
+                    'password' => Hash::make($data['password']),
+                    'viewpassword' => $data['password'],
+                    'email_verified_at' => now(),
+                    'user_type' => 1,
+                    'status' => 1,
+                ]);
+
+                // 2. Create Customer
+                $customer = Customer::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'phone' => $data['phone'],
+                    'status' => 1,
+                    'type' => 'normal',
+                    'source' => 'website',
+                    'password' => $data['password'], // Setter will hash
+                    'slug' => Str::slug($data['name']).'-'.uniqid(),
+                    'user_id' => $user->id,
+                ]);
+
+                // 3. Link User to Customer
+                $user->customer_id = $customer->id;
+                $user->save();
+            }
+
+            DB::commit();
+
+            // Return success message, prompting user to log in
+            return response()->json(['success' => true, 'message' => 'Registration successful! Please log in to continue.']);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            \Log::error('Registration Error: ' . $e->getMessage(), ['data' => $data]);
+            return response()->json(['success' => false, 'message' => 'An error occurred during registration. Please try again.'], 500);
         }
+        // --- END DIRECT CREATION ---
     }
-
-    /**
-     * Verify the OTP and create the user.
-     */
-    public function verifyOtp(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'otp' => 'required|numeric|digits:6',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['success' => false, 'message' => 'Please enter a valid 6-digit OTP.'], 422);
-    }
-
-    $tempUserData = session('temp_user_data');
-    if (!$tempUserData || $tempUserData['otp'] != $request->otp) {
-        return response()->json(['success' => false, 'message' => 'The provided OTP is invalid.'], 400);
-    }
-
-    // --- MODIFIED CREATION/UPDATE LOGIC ---
-    $existingCustomerId = $tempUserData['existing_customer_id'] ?? null;
-    $user = null;
-
-    DB::beginTransaction();
-    try {
-        if ($existingCustomerId) {
-            // --- SCENARIO 1: UPDATE EXISTING CUSTOMER, CREATE NEW USER ---
-
-            // 1. Create the User
-            $user = User::create([
-                'name' => $tempUserData['name'],
-                'email' => $tempUserData['email'],
-                'phone' => $tempUserData['phone'],
-                'password' => Hash::make($tempUserData['password']),
-                'viewpassword' => $tempUserData['password'],
-                'email_verified_at' => now(),
-                'user_type' => 1,
-                'status' => 1,
-            ]);
-
-            // 2. Find and Update the Customer
-            $customer = Customer::findOrFail($existingCustomerId);
-            $customer->update([
-                'name' => $tempUserData['name'],
-                'email' => $tempUserData['email'],
-                'password' => $tempUserData['password'], // Setter in Customer model will hash
-                'user_id' => $user->id,
-                'slug' => Str::slug($tempUserData['name']).'-'.uniqid(),
-                'source' => 'website',
-                'status' => 1,
-            ]);
-
-            // 3. Link User back to Customer
-            $user->customer_id = $customer->id;
-            $user->save();
-
-        } else {
-            // --- SCENARIO 2: CREATE NEW USER AND NEW CUSTOMER (Original Logic) ---
-
-            // 1. Create User
-            $user = User::create([
-                'name' => $tempUserData['name'],
-                'email' => $tempUserData['email'],
-                'phone' => $tempUserData['phone'],
-                'password' => Hash::make($tempUserData['password']),
-                'viewpassword' => $tempUserData['password'],
-                'email_verified_at' => now(),
-                'user_type' => 1,
-                'status' => 1,
-            ]);
-
-            // 2. Create Customer
-            $customer = Customer::create([
-                'name' => $tempUserData['name'],
-                'email' => $tempUserData['email'],
-                'phone' => $tempUserData['phone'],
-                'status' => 1,
-                'type' => 'normal',
-                'source' => 'website',
-                'password' => $tempUserData['password'], // Setter will hash
-                'slug' => Str::slug($tempUserData['name']).'-'.uniqid(),
-                'user_id' => $user->id,
-            ]);
-
-            // 3. Link User to Customer
-            $user->customer_id = $customer->id;
-            $user->save();
-        }
-
-        DB::commit();
-
-        // Continue to login
-        session()->forget('temp_user_data');
-        Auth::login($user);
-        return response()->json(['success' => true, 'redirect_url' => route('dashboard.user')]);
-
-    } catch (Exception $e) {
-        DB::rollBack();
-        \Log::error('Registration Error: ' . $e->getMessage(), ['data' => $tempUserData]);
-        return response()->json(['success' => false, 'message' => 'An error occurred during registration. Please try again.'], 500);
-    }
-    // --- END MODIFIED LOGIC ---
-}
     
     /**
-     * Resend the OTP for registration.
+     * [REMOVED] verifyOtp()
+     * This method is no longer needed for registration.
      */
-    public function resendOtp()
-    {
-        $tempUserData = session('temp_user_data');
 
-        if (!$tempUserData || !isset($tempUserData['phone'])) {
-            return response()->json(['success' => false, 'message' => 'Your session has expired. Please register again.'], 422);
-        }
-
-        $otp = random_int(100000, 999999);
-        $tempUserData['otp'] = $otp;
-        session(['temp_user_data' => $tempUserData]); // Resave session with new OTP
-
-        // --- UPDATED: Resend OTP via SMS ---
-        if ($this->sendSmsOtp($tempUserData['phone'], $otp)) {
-            return response()->json(['success' => true, 'message' => 'A new OTP has been sent to your phone number.']);
-        } else {
-            return response()->json(['success' => false, 'message' => 'We could not resend the OTP. Please try again later.'], 500);
-        }
-    }
+    
+    /**
+     * [REMOVED] resendOtp()
+     * This method is no longer needed for registration.
+     */
 
     /**
      * Handle a logout request using the default auth guard.
@@ -357,7 +406,7 @@ $cleanPhoneNumber = trim($phone);
     {
         // Get the authenticated User model instance
         $user = Auth::user();
-//dd($user->id);
+        
         if (!$user) {
             return redirect()->route('home.index');
         }
@@ -400,26 +449,18 @@ $cleanPhoneNumber = trim($phone);
 
 
     // ====================================================================
-    // --- NEW PASSWORD RESET (PHONE OTP) METHODS ---
+    // --- UPDATED PASSWORD RESET (EMAIL OTP) METHODS ---
     // ====================================================================
 
     /**
-     * Send a password reset OTP to the user's phone.
+     * Send a password reset OTP to the user's EMAIL.
      */
     public function sendPasswordResetOtp(Request $request)
     {
-        // Prepend '0' to the 10-digit phone number
-        if ($request->has('phone')) {
-            $request->merge([
-                'phone' => '0' . $request->phone
-            ]);
-        }
-        $formattedPhone = $request->phone;
-
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string|digits:11|exists:users,phone',
+            'email' => 'required|string|email|exists:users,email',
         ], [
-            'phone.exists' => 'No account found with this phone number.'
+            'email.exists' => 'No account found with this email address.'
         ]);
 
         if ($validator->fails()) {
@@ -427,17 +468,24 @@ $cleanPhoneNumber = trim($phone);
         }
 
         $otp = random_int(100000, 999999);
+        $email = $request->email;
 
-        // Store reset data in a separate session key to avoid conflict with registration
+        // Store reset data in a separate session key
         session(['password_reset_data' => [
-            'phone' => $formattedPhone,
+            'email' => $email,
             'otp'   => $otp,
         ]]);
 
-        if ($this->sendSmsOtp($formattedPhone, $otp)) {
-            return response()->json(['success' => true, 'message' => 'An OTP has been sent to your phone number.']);
-        } else {
-            return response()->json(['success' => false, 'message' => 'Could not send OTP. Please try again.'], 500);
+        try {
+            // Assumes you have a view: resources/views/front/emails/otp_email.blade.php
+            Mail::send('front.emails.otp_email', ['otp' => $otp, 'name' => 'User'], function ($message) use ($email) {
+                $message->to($email);
+                $message->subject('Your Password Reset Code');
+            });
+            return response()->json(['success' => true, 'message' => 'An OTP has been sent to your email address.']);
+        } catch (Exception $e) {
+            \Log::error("Password Reset OTP email sending failed: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Could not send OTP email. Please try again.'], 500);
         }
     }
 
@@ -459,32 +507,38 @@ $cleanPhoneNumber = trim($phone);
             return response()->json(['success' => false, 'message' => 'The provided OTP is invalid.'], 400);
         }
 
-        // OTP is correct. Store the verified phone in the session for the final step
+        // OTP is correct. Store the verified EMAIL in the session for the final step
         // and clear the OTP data.
-        session(['password_reset_verified_phone' => $resetData['phone']]);
+        session(['password_reset_verified_email' => $resetData['email']]);
         session()->forget('password_reset_data');
 
         return response()->json(['success' => true]);
     }
 
     /**
-     * Resend the password reset OTP.
+     * Resend the password reset OTP (to EMAIL).
      */
     public function resendPasswordResetOtp()
     {
         $resetData = session('password_reset_data');
 
-        if (!$resetData || !isset($resetData['phone'])) {
+        if (!$resetData || !isset($resetData['email'])) {
             return response()->json(['success' => false, 'message' => 'Your session has expired. Please try again.'], 422);
         }
 
         $otp = random_int(100000, 999999);
+        $email = $resetData['email'];
         $resetData['otp'] = $otp;
         session(['password_reset_data' => $resetData]); // Resave session with new OTP
 
-        if ($this->sendSmsOtp($resetData['phone'], $otp)) {
+        try {
+            Mail::send('front.emails.otp_email', ['otp' => $otp, 'name' => 'User'], function ($message) use ($email) {
+                $message->to($email);
+                $message->subject('Your New Password Reset Code');
+            });
             return response()->json(['success' => true, 'message' => 'A new OTP has been sent.']);
-        } else {
+        } catch (Exception $e) {
+            \Log::error("Password Reset OTP resend failed: " . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Could not resend OTP.'], 500);
         }
     }
@@ -495,9 +549,9 @@ $cleanPhoneNumber = trim($phone);
      */
     public function updatePasswordFromOtp(Request $request)
     {
-        // Check if the user has been verified via
-        $phone = session('password_reset_verified_phone');
-        if (!$phone) {
+        // Check if the user has been verified via EMAIL
+        $email = session('password_reset_verified_email');
+        if (!$email) {
             return response()->json(['success' => false, 'message' => 'Your verification session has expired. Please try again.'], 403);
         }
 
@@ -509,7 +563,7 @@ $cleanPhoneNumber = trim($phone);
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $user = User::where('phone', $phone)->first();
+        $user = User::where('email', $email)->first();
         if (!$user) {
             // This should not happen if session is secure, but as a safeguard.
             return response()->json(['success' => false, 'message' => 'User not found.'], 404);
@@ -526,7 +580,7 @@ $cleanPhoneNumber = trim($phone);
         }
 
         // Clear the verification session
-        session()->forget('password_reset_verified_phone');
+        session()->forget('password_reset_verified_email');
 
         // Log the user in
         Auth::login($user);
@@ -534,7 +588,7 @@ $cleanPhoneNumber = trim($phone);
         return response()->json(['success' => true, 'redirect_url' => route('dashboard.user')]);
     }
 
-    // --- END NEW PASSWORD RESET METHODS ---
+    // --- END UPDATED PASSWORD RESET METHODS ---
 
 
     /**
@@ -546,6 +600,8 @@ $cleanPhoneNumber = trim($phone);
             'name' => 'required|string|max:255',
              'secondary_phone' => 'nullable|string|digits:11',
             // Add validation for gender and dob if you have them in the db
+             'gender' => 'nullable|string|in:Male,Female,Others',
+             'dob' => 'nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -562,6 +618,9 @@ $cleanPhoneNumber = trim($phone);
         if ($user->customer) {
             $user->customer->name = $request->name;
             $user->customer->secondary_phone = $request->secondary_phone;
+            // Add gender/dob to customer model if they exist there
+            // $user->customer->gender = $request->gender;
+            // $user->customer->dob = $request->dob;
             $user->customer->save();
         }
 
@@ -595,6 +654,10 @@ $cleanPhoneNumber = trim($phone);
             }
         }
         if ($field === 'phone') {
+             // Add phone number format validation if needed (e.g., digits:11)
+             if (!preg_match('/^01[0-9]{9}$/', $value)) {
+                return response()->json(['success' => false, 'message' => 'Please provide a valid 11-digit phone number.'], 422);
+             }
              if (User::where('phone', $value)->where('id', '!=', Auth::id())->exists()) {
                 return response()->json(['success' => false, 'message' => 'This phone number is already taken.'], 422);
             }
@@ -711,7 +774,7 @@ $cleanPhoneNumber = trim($phone);
             'district' => 'required|string',
             'upazila' => 'required|string',
             'address' => 'required|string|max:255',
-            'address_type' => 'required|string|in:Home,Office,Others',
+            'address_type' => 'required|string|in:Home,Office,Others', // Assuming these are your types
             'is_default' => 'nullable|boolean',
         ]);
 
@@ -763,6 +826,11 @@ $cleanPhoneNumber = trim($phone);
         $customer = Auth::user()->customer;
         $address = $customer->addresses()->findOrFail($request->address_id);
 
+        // Check if the address belongs to the authenticated user's customer profile
+        if ($address->customer_id !== $customer->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
         if ($request->is_default) {
             $customer->addresses()->where('address_type', $request->address_type)->update(['is_default' => 0]);
         }
@@ -792,18 +860,9 @@ $cleanPhoneNumber = trim($phone);
         $customer = Auth::user()->customer;
         $address = $customer->addresses()->findOrFail($request->address_id);
         
-        // Prevent deletion of the last default address if you want to enforce at least one default
-        if ($address->is_default) {
-            $otherDefaults = $customer->addresses()
-                                    ->where('address_type', $address->address_type)
-                                    ->where('id', '!=', $address->id)
-                                    ->where('is_default', 1)
-                                    ->exists();
-            if (!$otherDefaults) {
-                 // Optionally, you could set another address as default before deleting
-                 // For now, let's just prevent it if it's the sole default of its type.
-                 // This logic can be adjusted based on business rules.
-            }
+        // Check if the address belongs to the authenticated user's customer profile
+        if ($address->customer_id !== $customer->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
         $address->delete();
@@ -815,9 +874,14 @@ $cleanPhoneNumber = trim($phone);
         $request->validate(['address_id' => 'required|integer|exists:customer_addresses,id']);
         $customer = Auth::user()->customer;
         $address = $customer->addresses()->findOrFail($request->address_id);
+
+        // Check if the address belongs to the authenticated user's customer profile
+        if ($address->customer_id !== $customer->id) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
         
-        // Unset other defaults of the same type
-        $customer->addresses()->where('address_type', '!=', $address->address_type)->update(['is_default' => 0]);
+        // Unset other defaults of the SAME type
+        $customer->addresses()->where('address_type', $address->address_type)->update(['is_default' => 0]);
         
         // Set the new default
         $address->update(['is_default' => 1]);
@@ -860,14 +924,23 @@ $cleanPhoneNumber = trim($phone);
     {
         $request->validate(['order_id' => 'required|integer']);
         $order = Auth::user()->customer->orders()->where('id', $request->order_id)->firstOrFail();
+        
+        // Allow cancellation if pending
         if ($order->status !== 'pending') {
             return response()->json(['success' => false, 'message' => 'This order can no longer be cancelled.'], 403);
         }
+        
         try {
             DB::beginTransaction();
             $order->status = 'Cancelled';
             $order->save();
-            OrderTracking::create(['order_id' => $order->id, 'invoice_no' => $order->invoice_no, 'status' => 'Cancelled']);
+            
+            OrderTracking::create([
+                'order_id' => $order->id, 
+                'invoice_no' => $order->invoice_no, 
+                'status' => 'Cancelled'
+            ]);
+
             DB::commit();
             return response()->json(['success' => true, 'message' => 'Your order has been cancelled successfully.']);
         } catch (Exception $e) {
@@ -909,7 +982,7 @@ $cleanPhoneNumber = trim($phone);
 
         // Output the PDF for download
         $fileName = 'invoice-' . $order->invoice_no . '.pdf';
-        return $mpdf->Output($fileName, 'I'); // 'D' forces a download
+        return $mpdf->Output($fileName, 'I'); // 'I' for inline display, 'D' forces download
     }
 
      public function reorder(Request $request)
@@ -917,13 +990,20 @@ $cleanPhoneNumber = trim($phone);
         $request->validate(['order_id' => 'required|integer']);
         $customer = Auth::user()->customer;
         $order = $customer->orders()->with('orderDetails.product.variants.color')->findOrFail($request->order_id);
+        
         $cart = Session::get('cart', []);
 
         foreach ($order->orderDetails as $detail) {
             $product = $detail->product;
-            $variant = $product ? $product->variants->find($detail->product_variant_id) : null;
-            if (!$product || !$variant) { continue; }
+            // Ensure product and variant still exist and are active
+            if (!$product || $product->status != 1) { continue; }
+            
+            $variant = $product->variants->find($detail->product_variant_id);
+            if (!$variant || $variant->status != 1) { continue; }
+
             $cartItemId = $variant->id . '-' . str_replace(' ', '', $detail->size);
+            
+            // Recalculate price in case it has changed
             $basePrice = $product->discount_price ?? $product->base_price;
             $finalPrice = $basePrice + ($variant->additional_price ?? 0);
             $image = $variant->variant_image[0] ?? $product->thumbnail_image[0] ?? null;
@@ -931,7 +1011,20 @@ $cleanPhoneNumber = trim($phone);
             if (isset($cart[$cartItemId])) {
                 $cart[$cartItemId]['quantity'] += $detail->quantity;
             } else {
-                $cart[$cartItemId] = [ 'rowId' => $cartItemId, 'product_id' => $product->id, 'variant_id' => $variant->id, 'name' => $product->name, 'size' => $detail->size, 'color' => $variant->color->name ?? 'N/A', 'quantity' => $detail->quantity, 'price' => $finalPrice, 'image' => $image, 'slug' => $product->slug, 'is_bundle' => false, 'url' => route('product.show', $product->slug)];
+                $cart[$cartItemId] = [ 
+                    'rowId' => $cartItemId, 
+                    'product_id' => $product->id, 
+                    'variant_id' => $variant->id, 
+                    'name' => $product->name, 
+                    'size' => $detail->size, 
+                    'color' => $variant->color->name ?? 'N/A', 
+                    'quantity' => $detail->quantity, 
+                    'price' => $finalPrice, 
+                    'image' => $image, 
+                    'slug' => $product->slug, 
+                    'is_bundle' => false, // Re-orders are not bundles
+                    'url' => route('product.show', $product->slug)
+                ];
             }
         }
         Session::put('cart', $cart);
